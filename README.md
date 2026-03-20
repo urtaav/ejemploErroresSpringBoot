@@ -134,21 +134,9 @@ Mantén el manejo de errores simple pero efectivo, utilizando códigos de error 
 
 
 
+# 1. Qué deberías loguear (mínimo útil)
 
-
-
-
-
-
-
-
-
-
-
-
-1. Qué deberías loguear (mínimo útil)
-
-Cuando ocurre un error:
+## Cuando ocurre un error:
 
 endpoint (/api/v1/...)
 
@@ -166,17 +154,17 @@ body (opcional, cuidado con datos sensibles)
 
 stacktrace
 
-requestId (clave 🔥 para debug)
+requestId (clave  para debug)
 
 
 
 
 
-Mejora tu GlobalExceptionHandler
+# Mejora tu GlobalExceptionHandler
 
-Inyecta HttpServletRequest para capturar contexto:
+## Inyecta HttpServletRequest para capturar contexto:
 
-```
+```java
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -233,7 +221,7 @@ public class GlobalExceptionHandler {
 
 Esto es CLAVE para debug en producción.
 
-```
+```java
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.MDC;
@@ -269,14 +257,14 @@ public class RequestLoggingFilter implements Filter {
 # 4. Configura logs bonitos (application.yml)
 
 
-```
+```java
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%X{requestId}] %-5level %logger - %msg%n"
 
 ```
 Resultado:
- ```
+ ```java
 2026-03-20 10:15:22 [a1b2c3] ERROR GlobalExceptionHandler - [DB_ERROR] POST /api/v1/tasks | IP: 192.168.1.1 | Error: duplicate key
 ```
 
