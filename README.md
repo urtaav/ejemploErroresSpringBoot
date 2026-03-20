@@ -131,3 +131,157 @@ Recomendaciones:
 Extiende ApiResponse con más campos si es necesario (por ejemplo, timestamps, errores detallados).
 
 Mantén el manejo de errores simple pero efectivo, utilizando códigos de error claros y mensajes amigables para el usuario.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Qué deberías loguear (mínimo útil)
+
+Cuando ocurre un error:
+
+endpoint (/api/v1/...)
+
+método HTTP (GET, POST)
+
+IP del cliente
+
+timestamp
+
+usuario (si tienes auth)
+
+query params
+
+body (opcional, cuidado con datos sensibles)
+
+stacktrace
+
+requestId (clave 🔥 para debug)
+
+
+
+
+
+Mejora tu GlobalExceptionHandler
+
+Inyecta HttpServletRequest para capturar contexto:
+
+```
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNotFound(
+            EntityNotFoundException ex,
+            HttpServletRequest request) {
+
+        log.warn(buildLog("NOT_FOUND", ex, request));
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage(), "RECURSO_NO_ENCONTRADO"));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleInsertFail(
+            DataIntegrityViolationException ex,
+            HttpServletRequest request) {
+
+        log.error(buildLog("DB_ERROR", ex, request), ex);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Error al insertar los datos", "ERROR_INSERTAR"));
+    }
+
+    private String buildLog(String type, Exception ex, HttpServletRequest request) {
+        return String.format(
+                "[%s] %s %s | IP: %s | Query: %s | Error: %s",
+                type,
+                request.getMethod(),
+                request.getRequestURI(),
+                getClientIp(request),
+                request.getQueryString(),
+                ex.getMessage()
+        );
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        return (xfHeader == null) ? request.getRemoteAddr() : xfHeader.split(",")[0];
+    }
+}
+```
+
+# 3. Agrega un requestId (nivel PRO)
+
+Esto es CLAVE para debug en producción.
+
+```
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.MDC;
+import java.io.IOException;
+import java.util.UUID;
+
+@Component
+public class RequestLoggingFilter implements Filter {
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        try {
+            String requestId = UUID.randomUUID().toString();
+            MDC.put("requestId", requestId);
+
+            HttpServletRequest req = (HttpServletRequest) request;
+
+            MDC.put("path", req.getRequestURI());
+            MDC.put("method", req.getMethod());
+
+            chain.doFilter(request, response);
+
+        } finally {
+            MDC.clear();
+        }
+    }
+}
+
+
+````
+# 4. Configura logs bonitos (application.yml)
+
+
+```
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{requestId}] %-5level %logger - %msg%n"
+
+```
+Resultado:
+ ```
+2026-03-20 10:15:22 [a1b2c3] ERROR GlobalExceptionHandler - [DB_ERROR] POST /api/v1/tasks | IP: 192.168.1.1 | Error: duplicate key
+```
+
+
+
+
+
+
